@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AI Voice Sales Bot</title>
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--tx:#14181f;--mut:#5d6675;--bd:#dde1e8;--ac:#2f5bea;--act:#fff;--ok:#157347;--warn:#a36200;--bad:#b42318;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12151b;--card:#1b2029;--tx:#eef0f4;--mut:#9aa3b2;--bd:#2d3441;--ac:#7b9bff;--act:#0b1020;--ok:#4cc38a;--warn:#e0a53a;--bad:#f2766b;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#12151b;--card:#1b2029;--tx:#eef0f4;--mut:#9aa3b2;--bd:#2d3441;--ac:#7b9bff;--act:#0b1020;--ok:#4cc38a;--warn:#e0a53a;--bad:#f2766b;color-scheme:dark}
+html,body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+*{box-sizing:border-box}
+.app{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+nav{background:var(--card);border-right:1px solid var(--bd);padding:20px 12px;display:flex;flex-direction:column;gap:4px}
+nav h1{font-size:16px;margin:0 8px 16px}
+nav button{all:unset;cursor:pointer;padding:10px 12px;border-radius:8px;color:var(--mut)}
+nav button:hover{background:var(--bg)}nav button.on{background:var(--ac);color:var(--act)}
+nav button:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+main{padding:24px;max-width:980px;width:100%}
+h2{margin:0 0 16px;font-size:22px}h3{margin:0 0 8px;font-size:15px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px;margin-bottom:16px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.stat b{display:block;font-size:28px}.stat span,.mut{color:var(--mut);font-size:13px}
+.btn{cursor:pointer;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:8px;padding:10px 16px;font:inherit}
+.btn.p{background:var(--ac);color:var(--act);border-color:var(--ac)}.btn.d{background:var(--bad);color:#fff;border-color:var(--bad)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+select,input[type=text]{font:inherit;padding:8px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx)}
+.pill{display:inline-block;padding:2px 10px;border-radius:99px;font-size:12px;font-weight:600;border:1px solid var(--bd)}
+.s-Active{color:var(--ok)}.s-Connecting{color:var(--warn)}.s-Ended{color:var(--mut)}
+.b-Converted,.b-Interested{color:var(--ok)}.b-Demo-Requested,.b-Follow-up-Required{color:var(--warn)}.b-Not-Interested,.b-No-Response{color:var(--bad)}
+.tr{max-height:340px;overflow:auto;display:flex;flex-direction:column;gap:8px}
+.m{max-width:80%;padding:8px 12px;border-radius:12px;border:1px solid var(--bd)}
+.m.ai{align-self:flex-start;background:var(--bg)}.m.c{align-self:flex-end;background:var(--ac);color:var(--act)}
+.m small{display:block;opacity:.7;font-size:11px}
+.err{border-color:var(--bad);color:var(--bad)}.warn{border-color:var(--warn);color:var(--warn)}
+.li{cursor:pointer;display:flex;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid var(--bd);flex-wrap:wrap}
+audio{width:100%;margin-top:8px}ul{margin:4px 0;padding-left:20px}
+@media(max-width:720px){.app{grid-template-columns:1fr;padding-bottom:64px}
+nav{position:fixed;bottom:0;left:0;right:0;flex-direction:row;justify-content:space-around;border-right:0;border-top:1px solid var(--bd);padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));z-index:5}
+nav h1{display:none}nav button{padding:8px;font-size:12px}main{padding:16px}.m{max-width:92%}}
+</style></head><body>
+<div class="app"><nav id="nav"></nav><main id="main"></main></div>
+<script>
+"use strict";
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const LANG={en:"en-IN",hi:"hi-IN"};
+const STATUSES=["Converted","Interested","Follow-up Required","Not Interested","Demo Requested","No Response"];
+// Sample product catalog (demo data, not real products)
+const P={
+ flow:{n:"FlowDesk CRM",d:"a CRM that tracks your leads and automates follow-ups",h:"एक CRM जो आपके लीड ट्रैक करता है और फॉलो-अप ऑटोमेट करता है",p:"₹999 per user per month",ph:"₹999 प्रति यूज़र प्रति माह",f:"pipeline tracking, WhatsApp and email automation, and sales reports",fh:"पाइपलाइन ट्रैकिंग, व्हाट्सऐप और ईमेल ऑटोमेशन, और सेल्स रिपोर्ट"},
+ inv:{n:"InvoiceNest",d:"an invoicing and GST billing tool for small businesses",h:"छोटे व्यवसायों के लिए इनवॉइसिंग और GST बिलिंग टूल",p:"₹499 per month per business",ph:"₹499 प्रति माह प्रति व्यवसाय",f:"GST invoices, payment reminders, and expense tracking",fh:"GST इनवॉइस, पेमेंट रिमाइंडर, और खर्च ट्रैकिंग"}};
+const T={
+en:{intro:p=>`Hello! This is Aria, an AI sales assistant for ${p.n}. ${p.n} is ${p.d}. Do you have a minute to hear how it could help your business?`,
+feat:p=>`${p.n} offers ${p.f}. Which of these matters most to you?`,
+price:p=>`${p.n} costs ${p.p}, with a 14 day free trial. Would that fit your budget?`,
+exp:p=>`I understand budget matters. Most teams recover the cost through saved time, and a free trial lets you check the value first. Shall I set that up?`,
+comp:p=>`That's fair. We can import your existing data for free. Would a short demo comparing it with your current tool help?`,
+sec:p=>`Security is a priority for us. Data is encrypted and you control who has access. Would you like the details sent to you?`,
+demo:p=>`Great, I've noted a demo request. Our team will contact you to schedule a time. Is there anything specific you'd like to see?`,
+later:p=>`No problem. I'll mark this for a follow-up. Is there a better time to reconnect?`,
+no:p=>`I understand. Thank you for your time, and have a great day!`,
+buy:p=>`Wonderful! I've noted that you'd like to go ahead with ${p.n}. Our onboarding team will contact you shortly. Thank you!`,
+yes:p=>`Great! ${p.n} gives you ${p.f}. Would you like a free demo or the pricing?`,
+dflt:p=>`Thanks for sharing. Could you tell me what you're looking for, so I can recommend the right plan?`,
+idle:()=>`Hello, are you still there?`},
+hi:{intro:p=>`नमस्ते! मैं आरिया हूँ, ${p.n} की AI सेल्स असिस्टेंट। यह ${p.h}। क्या आपके पास एक मिनट है?`,
+feat:p=>`${p.n} में ${p.fh} मिलते हैं। इनमें से आपके लिए सबसे ज़रूरी क्या है?`,
+price:p=>`${p.n} की कीमत ${p.ph} है, और 14 दिन का फ्री ट्रायल मिलता है। क्या यह आपके बजट में रहेगा?`,
+exp:()=>`मैं समझती हूँ कि बजट ज़रूरी है। समय की बचत से लागत निकल आती है, और फ्री ट्रायल से आप पहले खुद देख सकते हैं। क्या मैं शुरू करवा दूँ?`,
+comp:()=>`यह ठीक बात है। हम आपका मौजूदा डेटा मुफ़्त में इम्पोर्ट कर सकते हैं। क्या एक छोटा डेमो मदद करेगा?`,
+sec:()=>`सुरक्षा हमारी प्राथमिकता है। डेटा एन्क्रिप्टेड रहता है और एक्सेस आप तय करते हैं। क्या मैं विवरण भेज दूँ?`,
+demo:()=>`बढ़िया, मैंने डेमो का अनुरोध नोट कर लिया है। हमारी टीम समय तय करने के लिए संपर्क करेगी। आप क्या खास देखना चाहेंगे?`,
+later:()=>`कोई बात नहीं। मैं इसे फॉलो-अप के लिए नोट कर लेती हूँ। दोबारा बात करने का सही समय कौन सा रहेगा?`,
+no:()=>`मैं समझती हूँ। आपके समय के लिए धन्यवाद, आपका दिन शुभ हो!`,
+buy:p=>`बहुत बढ़िया! मैंने नोट कर लिया कि आप ${p.n} लेना चाहते हैं। हमारी ऑनबोर्डिंग टीम जल्द संपर्क करेगी। धन्यवाद!`,
+yes:p=>`बहुत अच्छा! ${p.n} में ${p.fh} मिलते हैं। क्या आप फ्री डेमो देखना चाहेंगे या कीमत जानना चाहेंगे?`,
+dflt:()=>`बताने के लिए धन्यवाद। आप क्या ढूँढ रहे हैं, ताकि मैं सही प्लान सुझा सकूँ?`,
+idle:()=>`हेलो, क्या आप वहाँ हैं?`}};
+const R=[["no",/not interested|no thanks|don'?t (want|need)|stop calling|नहीं चाहिए|रुचि नहीं|दिलचस्पी नहीं|nahi chahiye|interested nahi/i],
+["buy",/\b(buy|purchase)\b|sign me up|go ahead|let'?s do it|i'?ll take|खरीद|ले लूँगा|ले लूंगा|ले लेता|kharid/i],
+["demo",/demo|trial|show me|डेमो|दिखा/i],
+["price",/price|pricing|cost|how much|कीमत|क़ीमत|दाम|कितना|कितने|kitna|keemat/i],
+["exp",/expensive|too much|costly|budget|महंग|बजट|mehenga/i],
+["comp",/already (use|have)|competitor|zoho|hubspot|salesforce|पहले से/i],
+["sec",/secur|privacy|सुरक्षा|डेटा/i],
+["later",/later|think about|call (me )?back|next (week|month)|busy|बाद में|सोच|व्यस्त|baad mein/i],
+["feat",/feature|what does|how does|what can|integrat|फीचर|क्या करता|कैसे/i],
+["yes",/\b(yes|sure|okay|ok|interested|tell me more)\b|sounds good|haan|हाँ|हां|जी|बताइए|बताओ|ठीक/i]];
+const detect=t=>{for(const[k,r]of R)if(r.test(t))return k;return"dflt"};
+
+// storage: calls in localStorage, audio blobs in IndexedDB (browser-only, not a secure multi-user DB)
+const lsGet=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}};
+const lsSet=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));return true}catch{return false}};
+const idb=()=>new Promise((res,rej)=>{const r=indexedDB.open("vsb",1);r.onupgradeneeded=()=>r.result.createObjectStore("a");r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
+const aPut=async(k,b)=>{const d=await idb();return new Promise((res,rej)=>{const t=d.transaction("a","readwrite");t.objectStore("a").put(b,k);t.oncomplete=res;t.onerror=()=>rej(t.error)})};
+const aGet=async k=>{const d=await idb();return new Promise((res,rej)=>{const q=d.transaction("a").objectStore("a").get(k);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})};
+
+const SRC=window.SpeechRecognition||window.webkitSpeechRecognition;
+const S={view:"dash",calls:lsGet("vsb_calls",[]),cur:null,sel:null,prod:"flow",lang:"en",consent:false,err:"",ep:lsGet("vsb_ep",""),busy:false,sumLoading:false};
+let run={on:false};
+const time=t=>new Date(t).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"});
+const fmt=s=>String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0");
+
+function addMsg(role,text){S.cur.msgs.push({role,text,t:Date.now()});paint()}
+function speak(text){return new Promise(r=>{addMsg("ai",text);if(!window.speechSynthesis)return r();speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang=LANG[S.lang];const v=speechSynthesis.getVoices().find(v=>v.lang.replace("_","-").toLowerCase().startsWith(S.lang));if(v)u.voice=v;else if(S.lang==="hi")S.cur.warn="No Hindi voice is installed in this browser/OS, so spoken Hindi may be silent or garbled. The transcript is still accurate.";u.onend=u.onerror=()=>r();speechSynthesis.speak(u)})}
+
+async function reply(text,intent){
+ if(S.ep){try{const r=await fetch(S.ep.replace(/\/$/,"")+"/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({product:P[S.prod].n,lang:S.lang,messages:S.cur.msgs.map(m=>({role:m.role==="ai"?"assistant":"user",content:m.text}))})});if(!r.ok)throw 0;const j=await r.json();if(typeof j.reply==="string"&&j.reply){S.cur.llm=true;return j.reply}throw 0}catch{S.cur.warn="Your LLM endpoint failed; using the built-in rule-based replies for this turn."}}
+ return T[S.lang][intent](P[S.prod]);
+}
+async function turn(text){
+ addMsg("c",text);const intent=detect(text);S.cur.flags.push(intent);S.cur.hits.push([intent,text]);
+ const out=await reply(text,intent);if(!run.on)return;
+ await speak(out);if(!run.on)return;
+ if(intent==="no"||intent==="buy"){setTimeout(end,600)}else listen();
+}
+function listen(){
+ if(!run.on)return;const r=new SRC();r.lang=LANG[S.lang];r.interimResults=true;let fin="";run.recog=r;
+ r.onresult=e=>{let i="";fin="";for(const x of e.results){if(x.isFinal)fin+=x[0].transcript;else i+=x[0].transcript}S.cur.interim=i;paint()};
+ r.onerror=e=>{if(e.error==="not-allowed"||e.error==="service-not-allowed"){S.err="Speech recognition was blocked. Allow microphone access for this site and try again.";end()}else if(e.error==="network"){S.err="Speech recognition needs a network connection (Chrome sends audio to a speech service).";end()}};
+ r.onend=async()=>{if(!run.on||run.recog!==r)return;S.cur.interim="";if(fin.trim()){run.idle=0;await turn(fin.trim())}else{run.idle++;if(run.idle>=3){end();return}await speak(T[S.lang].idle());if(run.on)listen()}};
+ try{r.start()}catch{}
+}
+async function start(){
+ if(run.on||S.cur&&S.cur.status==="Connecting")return;
+ S.err="";
+ if(!SRC){S.err="This browser has no speech recognition. Use Chrome or Edge on desktop or Android.";return render()}
+ S.cur={status:"Connecting",msgs:[],flags:[],hits:[],secs:0,interim:"",warn:"",recErr:"",blob:null,startedAt:Date.now()};render();
+ let stream;
+ try{stream=await navigator.mediaDevices.getUserMedia({audio:true})}catch(e){
+  S.err=e.name==="NotAllowedError"?"Microphone permission was denied. Allow microphone access in your browser's site settings and try again.":e.name==="NotFoundError"?"No microphone was found on this device.":"Could not open the microphone: "+e.message;
+  S.cur=null;return render()}
+ run={on:true,stream,idle:0,chunks:[]};
+ if(S.consent){
+  if(!window.MediaRecorder)S.cur.recErr="Recording is not supported in this browser. The call continues without a recording.";
+  else try{const rec=new MediaRecorder(stream);rec.ondataavailable=e=>e.data.size&&run.chunks.push(e.data);rec.start(1000);run.rec=rec}catch(e){S.cur.recErr="Recording could not start: "+e.message}
+ }
+ S.cur.status="Active";S.cur.startedAt=Date.now();run.timer=setInterval(()=>{S.cur.secs=Math.floor((Date.now()-S.cur.startedAt)/1000);const t=$("#tm");if(t)t.textContent=fmt(S.cur.secs)},500);
+ render();await speak(T[S.lang].intro(P[S.prod]));if(run.on)listen();
+}
+async function end(){
+ if(!run.on)return;run.on=false;clearInterval(run.timer);
+ try{run.recog&&run.recog.abort()}catch{}
+ window.speechSynthesis&&speechSynthesis.cancel();
+ const c=S.cur;c.secs=Math.floor((Date.now()-c.startedAt)/1000);c.status="Ended";c.interim="";
+ if(run.rec&&run.rec.state!=="inactive"){await new Promise(r=>{run.rec.onstop=r;run.rec.stop()});c.blob=run.chunks.length?new Blob(run.chunks,{type:run.rec.mimeType||"audio/webm"}):null;if(!c.blob)c.recErr="Recording produced no audio data."}
+ run.stream&&run.stream.getTracks().forEach(t=>t.stop());
+ S.sumLoading=true;render();
+ const sum=await analyze(c);S.sumLoading=false;
+ const rec={id:Date.now(),date:Date.now(),secs:c.secs,lang:S.lang,prod:P[S.prod].n,msgs:c.msgs,sum,hasRec:false,recErr:c.recErr};
+ if(c.blob){try{await aPut(rec.id,c.blob);rec.hasRec=true}catch{rec.recErr="Recording was captured but could not be saved (storage unavailable)."}}
+ S.calls.unshift(rec);if(!lsSet("vsb_calls",S.calls))S.err="Call could not be saved to browser storage (quota or private mode).";
+ S.cur.saved=rec;render();
+}
+async function analyze(c){
+ const cust=c.msgs.filter(m=>m.role==="c");
+ if(S.ep&&cust.length){try{const r=await fetch(S.ep.replace(/\/$/,"")+"/summary",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({transcript:c.msgs})});const j=await r.json();if(r.ok&&STATUSES.includes(j.status)&&j.summary)return{...j,source:"LLM (via your configured endpoint)"}}catch{}}
+ const f=new Set(c.flags);let status,reason;
+ if(!cust.length){status="No Response";reason="The customer never spoke during the call."}
+ else if(f.has("buy")){status="Converted";reason="The customer said they want to go ahead and buy."}
+ else if(f.has("demo")){status="Demo Requested";reason="The customer asked for a demo or trial."}
+ else if(f.has("no")){status="Not Interested";reason="The customer said they are not interested."}
+ else if(f.has("later")){status="Follow-up Required";reason="The customer asked to be contacted later or wants time to think."}
+ else if(f.has("yes")||f.has("price")||f.has("feat")){status="Interested";reason="The customer asked about features or pricing or responded positively."}
+ else{status="Follow-up Required";reason="The customer's intent was unclear or they only raised objections."}
+ const pick=ks=>c.hits.filter(h=>ks.includes(h[0])).map(h=>h[1]);
+ const dur=fmt(c.secs);
+ return{source:"Fallback (rule-based keyword analysis of the transcript, no LLM configured)",status,reason,
+ summary:cust.length?`A ${dur} call about ${P[S.prod].n} with ${cust.length} customer message(s). Last customer message: “${cust[cust.length-1].text}”`:`A ${dur} call about ${P[S.prod].n}. The customer did not respond.`,
+ requirements:pick(["feat","price","demo","yes"]),objections:pick(["exp","comp","sec","later","no"]),
+ interest:{Converted:"High",Interested:"Medium",["Demo Requested"]:"High",["Follow-up Required"]:"Medium",["Not Interested"]:"Low",["No Response"]:"Unknown"}[status],
+ next:{Converted:"Hand over to onboarding and send the invoice.",Interested:"Send pricing and propose a demo.","Demo Requested":"Schedule the demo within 2 business days.","Follow-up Required":"Follow up at the time the customer suggested.","Not Interested":"Close the lead; revisit in a few months only if they opt in.","No Response":"Retry the call at a different time."}[status]};
+}
+
+// views
+const badge=s=>`<span class="pill b-${s.replace(/ /g,"-")}">${esc(s)}</span>`;
+const list=a=>a&&a.length?`<ul>${a.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:`<div class="mut">None detected</div>`;
+const tr=m=>m.length?m.map(x=>`<div class="m ${x.role}"><small>${x.role==="ai"?"AI (Aria)":"Customer"} · ${time(x.t)}</small>${esc(x.text)}</div>`).join(""):`<div class="mut">No messages yet. The transcript appears here live.</div>`;
+function detail(c){const s=c.sum;return`<div class="card"><div class="row"><h3 style="margin:0">Sales outcome</h3>${badge(s.status)}</div><p>${esc(s.reason)}</p><span class="mut">Analysis source: ${esc(s.source)}</span></div>
+<div class="card"><h3>Summary</h3><p>${esc(s.summary)}</p><h3>Customer requirements</h3>${list(s.requirements)}<h3>Objections raised</h3>${list(s.objections)}<h3>Interest level</h3><p>${esc(s.interest)}</p><h3>Recommended next steps</h3><p>${esc(s.next)}</p></div>
+<div class="card"><h3>Recording</h3>${c.hasRec?`<audio controls id="aud" data-id="${c.id}"></audio><div class="mut">Captures the customer's microphone only; the AI's synthesized voice is not captured by the browser.</div>`:`<div class="mut">${esc(c.recErr||"No recording (consent not given).")}</div>`}</div>
+<div class="card"><h3>Transcript</h3><div class="tr">${tr(c.msgs)}</div></div>`}
+function vDash(){const k=S.calls,n=s=>k.filter(c=>c.sum.status===s).length;
+ return`<h2>Dashboard</h2><div class="stats">${[["Total calls",k.length],["Interested leads",n("Interested")+n("Demo Requested")],["Conversions",n("Converted")],["Follow-ups",n("Follow-up Required")]].map(([a,b])=>`<div class="card stat"><b>${b}</b><span>${a}</span></div>`).join("")}</div>
+ <div class="card"><h3>Recent calls</h3>${k.length?k.slice(0,5).map(rowH).join(""):`<div class="mut">No calls yet. Open New Call to place your first one.</div>`}</div>`}
+const rowH=c=>`<div class="li" data-open="${c.id}" tabindex="0" role="button"><span>${new Date(c.date).toLocaleString()} · ${esc(c.prod)} · ${fmt(c.secs)}</span>${badge(c.sum.status)}</div>`;
+function vCall(){const c=S.cur,live=c&&(c.status==="Active"||c.status==="Connecting");
+ return`<h2>New call</h2>${S.err?`<div class="card err" role="alert">${esc(S.err)}</div>`:""}
+ ${SRC?"":`<div class="card warn">Speech recognition is not available in this browser. Use Chrome or Edge.</div>`}
+ <div class="card"><div class="row"><label>Product <select id="prod" ${live?"disabled":""}>${Object.entries(P).map(([k,v])=>`<option value="${k}" ${S.prod===k?"selected":""}>${v.n}</option>`).join("")}</select></label>
+ <label>Language <select id="lang" ${live?"disabled":""}><option value="en" ${S.lang==="en"?"selected":""}>English</option><option value="hi" ${S.lang==="hi"?"selected":""}>हिन्दी</option></select></label></div>
+ <p><label><input type="checkbox" id="consent" ${S.consent?"checked":""} ${live?"disabled":""}> I consent to recording this call’s microphone audio. It is stored only in this browser.</label></p>
+ <div class="row"><button class="btn p" id="start" ${live||S.busy?"disabled":""}>Start Call</button><button class="btn d" id="end" ${live?"":"disabled"}>End Call</button>
+ <span class="pill s-${c?c.status:"Idle"}" aria-live="polite">${c?c.status:"Idle"}</span><span>Duration <b id="tm">${fmt(c?c.secs:0)}</b></span></div>
+ ${c&&c.warn?`<p class="mut">⚠ ${esc(c.warn)}</p>`:""}${c&&c.recErr?`<p class="mut">⚠ ${esc(c.recErr)}</p>`:""}</div>
+ <div class="card"><h3>Live transcript</h3><div class="tr" id="tr" aria-live="polite">${tr(c?c.msgs:[])}${c&&c.interim?`<div class="m c" style="opacity:.6">${esc(c.interim)}…</div>`:""}</div></div>
+ ${S.sumLoading?`<div class="card">Generating summary…</div>`:c&&c.saved?detail(c.saved):""}`}
+function vHist(){if(S.sel){const c=S.calls.find(x=>x.id===S.sel);if(c)return`<button class="btn" id="back">← Back</button><h2 style="margin-top:12px">${new Date(c.date).toLocaleString()} · ${esc(c.prod)} · ${fmt(c.secs)}</h2>${detail(c)}`}
+ return`<h2>Call history</h2><div class="card">${S.calls.length?S.calls.map(rowH).join(""):`<div class="mut">No saved calls yet.</div>`}</div>`}
+function vSet(){return`<h2>Settings</h2><div class="card"><h3>LLM backend (optional)</h3><p class="mut">Base URL of a server you run that exposes POST /chat and POST /summary (API keys stay on that server). Leave empty to use the built-in rule-based engine.</p><input type="text" id="ep" value="${esc(S.ep)}" placeholder="https://your-server.example.com" style="width:100%"><p><button class="btn p" id="saveep">Save</button></p></div>
+<div class="card"><h3>Storage limitations</h3><p class="mut">Calls are kept in this browser’s localStorage and recordings in IndexedDB. They are not encrypted, not shared across devices or users, and are lost if site data is cleared.</p><button class="btn d" id="clear">Delete all calls</button></div>
+<div class="card"><h3>Browser limits</h3><p class="mut">Speech recognition works in Chrome and Edge and sends audio to the browser vendor’s speech service. Hindi voices depend on your OS. Product data is a sample catalog.</p></div>`}
+const V={dash:vDash,call:vCall,hist:vHist,set:vSet};
+const NAV=[["dash","Dashboard"],["call","New Call"],["hist","Call History"],["set","Settings"]];
+function paint(){if(S.view==="call"){const t=$("#tr");if(t){const c=S.cur;t.innerHTML=tr(c.msgs)+(c.interim?`<div class="m c" style="opacity:.6">${esc(c.interim)}…</div>`:"");t.scrollTop=t.scrollHeight}}}
+function render(){
+ $("#nav").innerHTML=`<h1>🎙 AI Voice Sales Bot</h1>`+NAV.map(([k,l])=>`<button data-v="${k}" class="${S.view===k?"on":""}">${l}</button>`).join("");
+ $("#main").innerHTML=V[S.view]();
+ const a=$("#aud");if(a)aGet(+a.dataset.id).then(b=>{if(b)a.src=URL.createObjectURL(b)}).catch(()=>{});
+ const t=$("#tr");if(t)t.scrollTop=t.scrollHeight;
+}
+document.addEventListener("click",e=>{const t=e.target;
+ if(t.dataset.v){S.view=t.dataset.v;S.sel=null;S.err="";render()}
+ else if(t.closest("[data-open]")){S.sel=+t.closest("[data-open]").dataset.open;S.view="hist";render()}
+ else if(t.id==="start")start();else if(t.id==="end")end();
+ else if(t.id==="back"){S.sel=null;render()}
+ else if(t.id==="saveep"){S.ep=$("#ep").value.trim();lsSet("vsb_ep",S.ep);t.textContent="Saved"}
+ else if(t.id==="clear"&&confirm("Delete all saved calls?")){S.calls=[];lsSet("vsb_calls",[]);indexedDB.deleteDatabase("vsb");render()}});
+document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.dataset&&e.target.dataset.open)e.target.click()});
+document.addEventListener("change",e=>{const t=e.target;if(t.id==="prod")S.prod=t.value;if(t.id==="lang")S.lang=t.value;if(t.id==="consent")S.consent=t.checked});
+window.addEventListener("beforeunload",()=>{if(run.on){run.stream&&run.stream.getTracks().forEach(t=>t.stop());speechSynthesis.cancel()}});
+render();
+</script></body></html>
